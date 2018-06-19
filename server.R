@@ -31,7 +31,7 @@ function(input, output) {
   
   output$topiclijst = renderUI({
     if(debug){cat("topickeuze\n")}
-    selectInput("topickeuze", label="Kies een (sub)topic om vragen uit te selecteren voor de toets", 
+    selectInput("topickeuze", width=500, label="Kies een (sub)topic om vragen uit te selecteren voor de toets", 
                 sort(unique(itemoverzicht()$topic)))
   })
   
@@ -47,6 +47,31 @@ function(input, output) {
       paste0("Aantal vragen in (sub)topic ",input$topickeuze," per toets: ",n)}else{
         paste0("Aantal vragen in (sub)topic ",input$topickeuze," per toets: ",paste0(n,collapse=", "),
                " (",sum(itemoverzicht()[itemoverzicht()$toets==laatstetoets(),"topic"]==input$topickeuze)," in de afgelopen toets)")}
+  })
+  
+  output$tab_vragenintopic <- renderTable({
+    vragenintopic <- itemoverzicht()[itemoverzicht()$topic==input$topickeuze,c("vraagcode","toets","p_schat","tijd_schat","p","rir","tijd")]
+    vragenintopic <- vragenintopic[order(vragenintopic[,input$vraagsortering]),]
+    if(input$weergave_p){vragenintopic <- vragenintopic[vragenintopic$p>=.4&vragenintopic$p<=.9,]}
+    if(input$weergave_rir){vragenintopic <- vragenintopic[vragenintopic$rir>=.1,]}
+    if(input$weergave_tijd){vragenintopic <- vragenintopic[vragenintopic$tijd<=3,]}
+    vragenintopic
+    })
+  
+  output$vraagselectie = renderUI({
+    if(debug){cat("vraagselectie\n")}
+    vragenintopic <- itemoverzicht()[itemoverzicht()$topic==input$topickeuze,"vraagcode"]
+    vragendeel1 <- unlist(strsplit(as.character(vragenintopic),"\\$"))[2*(1:length(vragenintopic))-1]
+    ontdubbelen <- data.frame(vragenintopic, vragendeel1, uniek=NA)
+    for(r in 1:nrow(ontdubbelen)){
+      sel <- ontdubbelen[ontdubbelen$vragendeel1==ontdubbelen$vragendeel1[r],]
+      langste <- sel$vragenintopic[which(nchar(as.character(sel$vragenintopic))==max(nchar(as.character(sel$vragenintopic))))]
+      ontdubbelen[ontdubbelen$vragenintopic==langste,"uniek"]<-1}
+    uniekevragen <- sort(ontdubbelen[!is.na(ontdubbelen$uniek),"vragenintopic"])
+
+    checkboxGroupInput("vraagselectie",
+                       label = "Selecteer vragen voor de toets",
+                       choices = uniekevragen)
   })
   
   output$tekst_alle_ntoetsen <- renderText({
