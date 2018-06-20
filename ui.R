@@ -31,15 +31,27 @@ fluidPage(
     textOutput("tekst_alle_rir"),
     textOutput("tekst_alle_tijd"),
     br(),
-    h5(strong("Afgelopen toets")),
+    h5(strong("Laatst afgenomen toets")),
     textOutput("tekst_laatste_volgnr"),
+    textOutput("tekst_laatste_nvragen"),
     textOutput("tekst_laatste_ndg"),
     textOutput("tekst_laatste_alfa"),
     textOutput("tekst_laatste_p"),
     textOutput("tekst_laatste_rir"),
     textOutput("tekst_laatste_tijd"),
     br(),
-    h5(strong("Toets die nu wordt samengesteld"))
+    h5(strong("Toets die nu wordt samengesteld")),
+    textOutput("tekst_huidig_nvragen"),
+    textOutput("tekst_huidig_nvragenafgenomen"),
+    textOutput("tekst_huidig_p"),
+    textOutput("tekst_huidig_mamemo"),
+    textOutput("tekst_huidig_rir"),
+    textOutput("tekst_huidig_tijd"),
+    textOutput("tekst_huidig_totaletijd"),
+    br(),
+    conditionalPanel(
+      condition = "output.fileDownloadklaar",
+    downloadButton('download_xslx', 'Gegevens samengestelde toets in Excel'))
     ),
   
   ####main panel####
@@ -57,20 +69,37 @@ fluidPage(
                                                  "p","rir","tijd"),
                                      selected = "vraagcode"),
                          checkboxInput("weergave_p", width=600,
-                                       label = "alleen vragen met p-waarde van minstens .40 en hoogstens .90", 
+                                       label = "geen vragen met p-waarde van minder dan .40 of meer dan .90", 
                                        value = TRUE),
                          checkboxInput("weergave_rir", width=600, 
-                                       label = "alleen vragen met itemrestcorrelatie van minstens .10", 
+                                       label = "geen vragen met itemrestcorrelatie van minder dan .10", 
                                        value = TRUE),
                          checkboxInput("weergave_tijd", width=600, 
-                                       label = "alleen vragen met gemiddelde tijd van hoogstens 3 minuten", 
+                                       label = "geen vragen met gemiddelde tijd van meer dan 3 minuten", 
                                        value = TRUE),
                          tableOutput("tab_vragenintopic"),
                          br(),
                          uiOutput("vraagselectie")
                          ),
-                tabPanel("Alle tot nu toe geselecteerde varagen",
-                         br())
+                tabPanel("Alle tot nu toe geselecteerde vragen",
+                         br(),
+                         h5(strong("Gecombineerde gegevens per vraag")),
+                         "In de onderstaande tabel worden statistieken van de voor de toets geselecteerde vragen 
+                         weergegeven. Wanneer een vraag meer dan een keer is afgenomen geeft 'n' het totale aantal
+                         eerstekansers waarbij de vraag is afgenomen en geven 'p', 'rir' en 'tijd' de gewogen gemiddelden
+                         van de p-waardes, itemrestcorrelaties en gemiddelde tijd per vraag over de afnames.",
+                         br(),
+                         br(),
+                         tableOutput("tab_toetssel_gem"),
+                         br(),
+                         h5(strong("Gegevens per vraag per afname")),
+                         "In de onderstaande tabel worden voor de toets geselecteerd vragen 
+                          die meerdere keren zijn afgenomen op meerdere regels 
+                         weergegeven, zodat de statistieken per afname zichtbaar zijn.",
+                         br(),
+                         br(),
+                         tableOutput("tab_toetssel")
+                         )
                 )
     )
 )
