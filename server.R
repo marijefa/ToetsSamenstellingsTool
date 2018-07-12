@@ -8,7 +8,7 @@ function(input, output) {
   
   ###reactive###
   
-  itemoverzicht <- reactive({
+  itemoverzicht <- reactive({#inlezen beschikbare afnamegegevens en wat in acceptatie zit, metatags etc eruit halen
     if(debug){cat("itemoverzicht\n")}
     itemoverzicht <- read.csv("R:\\10VDL\\Toetsverwerking\\analyse_10vdl\\Apps\\Toetssamenstelling\\itemoverzicht.csv", header=T, sep=";")
     itemoverzicht <- itemoverzicht[itemoverzicht$vak==input$vakkeuze,]
@@ -29,26 +29,82 @@ function(input, output) {
     itemoverzicht$vraagcode <- as.character(itemoverzicht$vraagcode)
     itemoverzicht$vraagcode_deel1 <- as.character(itemoverzicht$vraagcode_deel1)
     itemoverzicht$vraagcode_deel2 <- as.character(itemoverzicht$vraagcode_deel2)
+    itemoverzicht$toetsen=NA; itemoverzicht$laatst <- 0
 
-    itemoverzicht <- itemoverzicht[itemoverzicht$vraagcode_deel1 %in% inacceptatie$vraagcode_deel1,]
+    itemoverzicht$inacceptatie <- as.numeric(itemoverzicht$vraagcode_deel1 %in% inacceptatie$vraagcode_deel1)
     nognietafgenomen <- inacceptatie[!inacceptatie$vraagcode_deel1 %in% itemoverzicht$vraagcode_deel1,]
     nieuw <- data.frame(vak=input$vakkeuze, toets=NA, n=NA, alfa=NA,
                         vraagcode=nognietafgenomen$vraagcode,
-                        topic=NA, p_schat=NA, tijd_schat=NA, p=NA, rir=NA, tijd=NA,
+                        topic=NA, p_schat=NA, tijd_schat=NA, p=NA, rir=NA, tijd=NA, inacceptatie=1,
                         vraagcode_deel1=nognietafgenomen$vraagcode_deel1,
-                        vraagcode_deel2=nognietafgenomen$vraagcode_deel2)
+                        vraagcode_deel2=nognietafgenomen$vraagcode_deel2,
+                        toetsen=NA,laatst=1)
     itemoverzicht <- rbind(itemoverzicht,nieuw)
     
     itemoverzicht$topic <- unlist(strsplit(itemoverzicht$vraagcode_deel1,"-"))[4*(1:nrow(itemoverzicht))-2]
+    itemoverzicht$topic <- gsub(" ","",itemoverzicht$topic)
     itemoverzicht$p_schat <- substr(itemoverzicht$vraagcode_deel2,1,2)
     itemoverzicht$tijd_schat <- substr(itemoverzicht$vraagcode_deel2,4,4)
+
+    for(r in 1:nrow(itemoverzicht)){
+      itemoverzicht$toetsen[r] <- paste0(unique(itemoverzicht[itemoverzicht$vraagcode_deel1 %in% itemoverzicht$vraagcode_deel1[r],"toets"]),collapse=",")}
+    uniekevragen <- unique(itemoverzicht$vraagcode_deel1)
+    for(v in 1:length(uniekevragen)){
+      sel <- itemoverzicht[itemoverzicht$vraagcode_deel1==as.character(uniekevragen)[v],]
+      toetsnummers <- as.numeric(substr(as.character(sel$toets),2,3)) 
+      laatste <- sel$vraagcode[which(toetsnummers==max(toetsnummers))]
+      itemoverzicht[itemoverzicht$vraagcode==as.character(laatste),"laatst"] <- 1}
     
     selvragen <<- NULL
     
     itemoverzicht
   })
   
-  geselvragen <- reactive({
+  itemoverzicht_gem <- reactive({#tabel met voor alle vragen een regel met op n gewogen combineerde statstieken
+    if(debug){cat("itemoverzicht_gem\n")}
+    itemoverzicht <- itemoverzicht()
+    itemoverzicht_uniek <- itemoverzicht[itemoverzicht$laatst==1,]
+    itemoverzicht_gem <- data.frame(vraagcode=itemoverzicht_uniek$vraagcode,
+                                    inacceptatie=itemoverzicht_uniek$inacceptatie,
+                                    topic=itemoverzicht_uniek$topic,
+                                    vraagcode_deel1=itemoverzicht_uniek$vraagcode_deel1,
+                                    vraagcode_deel2=itemoverzicht_uniek$vraagcode_deel2,
+                                    toetsen=itemoverzicht_uniek$toetsen,
+                                    n=NA, p_schat=NA, tijd_schat=NA, p=NA, rir=NA, tijd=NA, tijd_comb=NA)
+    itemoverzicht_gem <- itemoverzicht_gem[order(itemoverzicht_gem$vraagcode),]
+    
+    for(r in 1:nrow(itemoverzicht_gem)){
+      sel <- itemoverzicht[itemoverzicht$vraagcode_deel1 %in% itemoverzicht_gem$vraagcode_deel1[r],]
+      itemoverzicht_gem$p_schat[r] <- unique(sel$p_schat)[length(unique(sel$p_schat))] #bij verschil, pak de nieuwste schatting
+      itemoverzicht_gem$tijd_schat[r] <- unique(sel$tijd_schat)[length(unique(sel$tijd_schat))]
+      if(sum(!is.na(sel$n))>0){
+        itemoverzicht_gem$n[r] <- sum(sel$n,na.rm=T)
+        itemoverzicht_gem$p[r] <- sum(sel$n*sel$p)/sum(sel$n)
+        itemoverzicht_gem$rir[r] <- sum(sel$n*sel$rir)/sum(sel$n)
+        itemoverzicht_gem$tijd[r] <- sum(sel[!is.na(sel$tijd),"n"]*sel[!is.na(sel$tijd),"tijd"])/sum(sel[!is.na(sel$tijd),"n"])
+      }else{
+          itemoverzicht_gem$n[r] <- 0}
+      }
+    itemoverzicht_gem$tijd_comb <- itemoverzicht_gem$tijd
+    itemoverzicht_gem[is.na(itemoverzicht_gem$tijd_comb),"tijd_comb"] <- itemoverzicht_gem[is.na(itemoverzicht_gem$tijd_comb),"tijd_schat"]
+    
+    itemoverzicht_gem
+  })
+  
+  
+  vragenintopic_metnietacc <- reactive({
+    vragenintopic <- itemoverzicht()[itemoverzicht()$topic==input$topickeuze,c("vraagcode","toets","p_schat","tijd_schat","p","rir","tijd")]
+    vragenintopic <- vragenintopic[order(vragenintopic[,input$vraagsortering]),]
+    vragenintopic
+  })
+  
+  vragenintopic_zondernietacc <- reactive({
+    vrageninacc <- itemoverzicht()[itemoverzicht()$inacceptatie==1,"vraagcode"]
+    vragenintopic <- vragenintopic_metnietacc()[vragenintopic_metnietacc()$vraagcode %in% vrageninacc,]
+    vragenintopic
+  })
+  
+  geselvragen <- reactive({#de door de gebruiker geselecteerde vragen (BUG: deselecteren na topicwissel nog onmogelijk)
     if(debug){cat("geselvragen\n")}
     huidigtopicuitsel <- data.frame(selvragen=selvragen,
                                     topic=unlist(strsplit(as.character(selvragen),"-"))[5*(1:length(selvragen))-3])
@@ -60,7 +116,7 @@ function(input, output) {
     selvragen
     })
   
-  toetssel <- reactive({
+  toetssel <- reactive({#tabel met voor elke geselecteerde vraag voor elke afname een regel
     if(debug){cat("toetssel\n")}
     toetssel <- itemoverzicht()[itemoverzicht()$vraagcode_deel1 %in%
                                   unlist(strsplit(as.character(geselvragen()),"\\$"))[2*(1:length(geselvragen()))-1],
@@ -68,28 +124,16 @@ function(input, output) {
     toetssel[order(toetssel$vraagcode),]
   })
   
-  toetssel_gem <- reactive({
+  toetssel_gem <- reactive({#tabel met voor elke geselecteerde vraag een regel met op n gewogen combineerde statstieken
     if(debug){cat("toetssel_gem\n")}
-    toetssel_gem <- data.frame(vraagcode=geselvragen(), toets=NA, n=NA, p_schat=NA, tijd_schat=NA, p=NA, rir=NA, tijd=NA, tijd_comb=NA)
+    toetssel_gem <- itemoverzicht_gem()[itemoverzicht_gem()$vraagcode %in% geselvragen(),
+                                        c("vraagcode","toetsen","n","p_schat","tijd_schat","p","rir","tijd","tijd_comb")]
+    toetssel_gem$n <- as.character(toetssel_gem$n)
     
-    for(r in 1:nrow(toetssel_gem)){
-      sel <- itemoverzicht()[itemoverzicht()$vraagcode_deel1 %in%
-                               unlist(strsplit(as.character(geselvragen()),"\\$"))[2*(1:length(geselvragen()))-1][r],]
-      toetssel_gem$toets[r] <- paste0(unique(as.character(sel$toets)),collapse=",")
-      toetssel_gem$n[r] <- sum(sel$n)
-      toetssel_gem$p_schat[r] <- unique(sel$p_schat)[length(unique(sel$p_schat))] #bij verschil, pak de nieuwste schatting
-      toetssel_gem$tijd_schat[r] <- unique(sel$tijd_schat)[length(unique(sel$tijd_schat))]
-      toetssel_gem$p[r] <- sum(sel$n*sel$p)/sum(sel$n)
-      toetssel_gem$rir[r] <- sum(sel$n*sel$rir)/sum(sel$n)
-      toetssel_gem$tijd[r] <- sum(sel[!is.na(sel$tijd),"n"]*sel[!is.na(sel$tijd),"tijd"])/sum(sel[!is.na(sel$tijd),"n"])
-    }
-    toetssel_gem$tijd_comb <- toetssel_gem$tijd
-    toetssel_gem[is.na(toetssel_gem$tijd_comb),"tijd_comb"] <- toetssel_gem[is.na(toetssel_gem$tijd_comb),"tijd_schat"]
-    
-    toetssel_gem[order(toetssel_gem$vraagcode),]
-  })
+    toetssel_gem
+    })
   
-  laatstetoets <- reactive({
+  laatstetoets <- reactive({#bepalen wat de laatst afgenomen toets in de beschikbare data is
     if(debug){cat("laatstetoets\n")}
     paste0("T",max(as.numeric(substr(unique(itemoverzicht()$toets)[!is.na(unique(itemoverzicht()$toets))],2,3))))
 
@@ -97,52 +141,59 @@ function(input, output) {
   
   ###nonreactive###
   
-  output$topiclijst = renderUI({
+  output$topiclijst = renderUI({#alle topics die voorkomen in de vraagcodes
     if(debug){cat("topickeuze\n")}
     selectInput("topickeuze", width=500, label="Kies een (sub)topic om vragen uit te selecteren voor de toets", 
                 sort(unique(itemoverzicht()$topic)))
   })
   
-  output$tekst_nvragenpertopic <- renderText({
+  output$tab_nvragenpertopic <- renderTable({#weergeven hoeveel vragen in geselecteerd topic per toets
     if(debug){cat("nvragenpertopic\n")}
-    toetsen <- unique(itemoverzicht()$toets)
-    pertoets <- NA
-    for(t in 1:length(toetsen)){
-      pertoets[t] <- sum(itemoverzicht()[itemoverzicht()$toets==toetsen[t],"topic"]==input$topickeuze)}
-    n <- sort(unique(pertoets)) 
-
-    if(length(n)==1){
-      paste0("Aantal vragen in (sub)topic ",input$topickeuze," per toets: ",n)}else{
-        paste0("Aantal vragen in (sub)topic ",input$topickeuze," per toets: ",paste0(n,collapse=", "),
-               " (",sum(itemoverzicht()[itemoverzicht()$toets==laatstetoets(),"topic"]==input$topickeuze)," in de afgelopen toets)")}
+    toetsen <- unique(itemoverzicht()$toets)[!is.na(unique(itemoverzicht()$toets))]
+    pertoets <- data.frame(toets=toetsen,n=NA)
+    for(r in 1:nrow(pertoets)){
+      pertoets$n[r] <- nrow(vragenintopic_metnietacc()[!is.na(vragenintopic_metnietacc()$toets)&vragenintopic_metnietacc()$toets==as.character(pertoets$toets[r]),])}
+    pertoets <- t(pertoets[,-1]) #transpose
+    colnames(pertoets) <- toetsen
+    pertoets
   })
   
-  output$tab_vragenintopic <- renderTable({
+  output$tab_vragenintopic <- renderTable({#tabel met beschikbare gegevens vragen in topic (selectie met condities)
     if(debug){cat("tab_vragenintopic\n")}
-    vragenintopic <- itemoverzicht()[itemoverzicht()$topic==input$topickeuze,c("vraagcode","toets","p_schat","tijd_schat","p","rir","tijd")]
-    vragenintopic <- vragenintopic[order(vragenintopic[,input$vraagsortering]),]
+    vragenintopic <- vragenintopic_zondernietacc()
+    if(!input$weergave_welafgenomen){vragenintopic <- vragenintopic[is.na(vragenintopic$p),]}
+    if(!input$weergave_nietafgenomen){vragenintopic <- vragenintopic[!is.na(vragenintopic$p),]}
     if(input$weergave_p){vragenintopic <- vragenintopic[is.na(vragenintopic$p)|(vragenintopic$p>=.4&vragenintopic$p<=.9),]}
     if(input$weergave_rir){vragenintopic <- vragenintopic[is.na(vragenintopic$rir)|vragenintopic$rir>=.1,]}
     if(input$weergave_tijd){vragenintopic <- vragenintopic[is.na(vragenintopic$tijd)|vragenintopic$tijd<=3,]}
     vragenintopic
     })
   
-  output$vraagselectie = renderUI({
+  output$vraagselectie = renderUI({#aanvinkbaar lijstje met alle vragen in acceptatie in topic
     if(debug){cat("vraagselectie\n")}
-    vragenintopic <- itemoverzicht()[itemoverzicht()$topic==input$topickeuze,"vraagcode"]
-    vragendeel1 <- unlist(strsplit(as.character(vragenintopic),"\\$"))[2*(1:length(vragenintopic))-1]
-    if(debug){cat("vraagselectie_ontdubbelen\n")}
-    ontdubbelen <- data.frame(vragenintopic, vragendeel1, uniek=NA)
-    for(r in 1:nrow(ontdubbelen)){
-      sel <- ontdubbelen[ontdubbelen$vragendeel1==ontdubbelen$vragendeel1[r],]
-      langste <- sel$vragenintopic[which(nchar(as.character(sel$vragenintopic))==max(nchar(as.character(sel$vragenintopic))))]
-      ontdubbelen[ontdubbelen$vragenintopic==langste,"uniek"]<-1}
-    uniekevragen <- sort(ontdubbelen[!is.na(ontdubbelen$uniek),"vragenintopic"])
-
-    if(debug){cat("vraagselectie_checkbox\n")}
     checkboxGroupInput("vraagselectie",
                        label = "Selecteer vragen voor de toets",
-                       choices = uniekevragen)
+                       choices = itemoverzicht_gem()[itemoverzicht_gem()$topic==input$topickeuze&itemoverzicht_gem()$inacceptatie==1,"vraagcode"])
+  })
+  
+  output$vraagselectie_stats = renderUI({#lijstje met statistieken alle vragen in acceptatie in topic
+    if(debug){cat("vraagselectie_stats\n")}
+    intopic <- itemoverzicht_gem()[itemoverzicht_gem()$topic==input$topickeuze&itemoverzicht_gem()$inacceptatie==1,]
+    stats <- paste0("p = ",round(intopic$p,2),", rir = ",round(intopic$rir,2),", tijd = ",round(intopic$tijd,2)," min")
+    stats[is.na(intopic$p)] <- "geen afnamegegevens"
+    
+    vinkje <- rep(1,length(stats))
+    if(!input$weergave_welafgenomen){vinkje[!is.na(intopic$p)] <- 0}
+    if(!input$weergave_nietafgenomen){vinkje[is.na(intopic$p)] <- 0}
+    if(input$weergave_p){vinkje[!is.na(intopic$p)&(intopic$p<.4|intopic$p>.9)] <- 0}
+    if(input$weergave_rir){vinkje[!is.na(intopic$rir)&intopic$rir<.1] <- 0}
+    if(input$weergave_tijd){vinkje[!is.na(intopic$tijd)&intopic$tijd>3] <- 0}
+    vinkje <- stats[vinkje==1]
+    
+    checkboxGroupInput("vraagselectie_stats",
+                       label = "Gecombineerde statistieken",
+                       choices = stats,
+                       selected=vinkje)
   })
   
   output$tab_toetssel <- renderTable({
@@ -170,6 +221,15 @@ function(input, output) {
     alfas <- unique(itemoverzicht()[,1:4])[!is.na(unique(itemoverzicht()[,1:4])$toets),]$alfa
     paste0("Cronbachs alfa: gem. ",round(mean(alfas,na.rm=T),2)," (",
            round(min(alfas,na.rm=T),2),"-",round(max(alfas,na.rm=T),2),")")
+  })
+  
+  output$tekst_alle_nvragenacc <- renderText({
+    paste0("Aantal vragen in acceptatie: ",nrow(itemoverzicht_gem()))
+    })
+  
+  output$tekst_alle_nvragenaccafgenomen <- renderText({
+    n <- nrow(itemoverzicht_gem()[!is.na(itemoverzicht_gem()$p),])
+    paste0("Aantal met afnamegegevens: ",n," (",round(100*n/nrow(itemoverzicht_gem()),0),"%)")
   })
   
   output$tekst_alle_p <- renderText({
@@ -213,6 +273,17 @@ function(input, output) {
            round(min(ps),2),"-",round(max(ps),2),")")
   })
   
+  output$tekst_laatste_mamemo <- renderText({
+    laatstetoets <- itemoverzicht()[!is.na(itemoverzicht()$toets)&itemoverzicht()$toets==laatstetoets(),]
+    ma <- nrow(laatstetoets[laatstetoets$p_schat=="Ma",])
+    me <- nrow(laatstetoets[laatstetoets$p_schat=="Me",])
+    mo <- nrow(laatstetoets[laatstetoets$p_schat=="Mo",])
+    paste0("Ingeschat als makkelijk / medium / moeilijk: ",
+           ma," (",round(100*ma/nrow(laatstetoets),0),"%) / ",
+           me," (",round(100*me/nrow(laatstetoets),0),"%) / ",
+           mo," (",round(100*mo/nrow(laatstetoets),0),"%)")
+  })
+  
   output$tekst_laatste_rir <- renderText({
     rirs <- itemoverzicht()[!is.na(itemoverzicht()$toets)&itemoverzicht()$toets==laatstetoets(),"rir"]
     paste0("Itemrestcorrelatie: gem. ",round(mean(rirs),2)," (",
@@ -235,8 +306,16 @@ function(input, output) {
       paste0("Aantal met afnamegegevens: ",n," (",round(100*n/length(geselvragen()),0),"%)")}
   })
   
-  output$tekst_huidig_p <- renderText({
+  output$tekst_huidig_ngoedestats <- renderText({
     if(length(geselvragen())>0){
+      n <- nrow(toetssel_gem()[!is.na(toetssel_gem()$p)&toetssel_gem()$p>=.40&toetssel_gem()$p<=.90&
+                                 !is.na(toetssel_gem()$rir)&toetssel_gem()$rir>=.10&
+                                 (is.na(toetssel_gem()$tijd)|toetssel_gem()$tijd<=3),])
+      paste0("Aantal met goede statistieken: ",n," (",round(100*n/length(geselvragen()),0),"%)")}
+  })
+  
+  output$tekst_huidig_p <- renderText({
+    if(nrow(toetssel_gem()[!is.na(toetssel_gem()$p),])>0){
       ps <- toetssel_gem()[!is.na(toetssel_gem()$p),"p"]
       paste0("p-waarde afgenomen vragen: gem. ",round(mean(ps),2)," (",
              round(min(ps),2),"-",round(max(ps),2),")")}
@@ -255,14 +334,14 @@ function(input, output) {
   })
   
   output$tekst_huidig_rir <- renderText({
-    if(length(geselvragen())>0){
+    if(nrow(toetssel_gem()[!is.na(toetssel_gem()$rir),])>0){
       rirs <- toetssel_gem()[!is.na(toetssel_gem()$rir),"rir"]
       paste0("Itemrestcorrelatie afgenomen vragen: gem. ",round(mean(rirs),2)," (",
              round(min(rirs),2),"-",round(max(rirs),2),")")}
   })
   
   output$tekst_huidig_tijd <- renderText({
-    if(length(geselvragen())>0){
+    if(nrow(toetssel_gem()[!is.na(toetssel_gem()$tijd),])>0){
       tijden <- toetssel_gem()[!is.na(toetssel_gem()$tijd),"tijd"]
       paste0("Tijd per afgenomen vraag (min): gem. ",round(mean(tijden),2)," (",
              round(min(tijden),2),"-",round(max(tijden),2),")")}

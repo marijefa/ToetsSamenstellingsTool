@@ -27,6 +27,8 @@ fluidPage(
     textOutput("tekst_alle_ntoetsen"),
     textOutput("tekst_alle_ndg"),
     textOutput("tekst_alle_alfa"),
+    textOutput("tekst_alle_nvragenacc"),
+    textOutput("tekst_alle_nvragenaccafgenomen"),
     textOutput("tekst_alle_p"),
     textOutput("tekst_alle_rir"),
     textOutput("tekst_alle_tijd"),
@@ -37,12 +39,14 @@ fluidPage(
     textOutput("tekst_laatste_ndg"),
     textOutput("tekst_laatste_alfa"),
     textOutput("tekst_laatste_p"),
+    textOutput("tekst_laatste_mamemo"),
     textOutput("tekst_laatste_rir"),
     textOutput("tekst_laatste_tijd"),
     br(),
     h5(strong("Toets die nu wordt samengesteld")),
     textOutput("tekst_huidig_nvragen"),
     textOutput("tekst_huidig_nvragenafgenomen"),
+    textOutput("tekst_huidig_ngoedestats"),
     textOutput("tekst_huidig_p"),
     textOutput("tekst_huidig_mamemo"),
     textOutput("tekst_huidig_rir"),
@@ -58,16 +62,29 @@ fluidPage(
   
   mainPanel(
     tabsetPanel(type = "tabs",
-                tabPanel("Vraagselectie per subtopic",
+                tabPanel("Vraagselectie per (sub)topic",
                          br(),
                          uiOutput("topiclijst"),
-                         textOutput("tekst_nvragenpertopic"),
+                         h5(strong("Aantal vragen in dit (sub)topic per toets")),
+                         tableOutput("tab_nvragenpertopic"),
+                         h5(strong("Beschikbare vragen in (sub)topic in acceptatie")),
+                         "In de onderstaande lijst van vragen worden alle vragen in acceptatie in het (sub)topic 
+                         weergegeven en daarnaast de bijbehorende statistieken. 
+                         Wanneer een vraag meer dan een keer is afgenomen geven 'p', 'rir' en 'tijd' de gewogen gemiddelden
+                         van de p-waardes, itemrestcorrelaties en gemiddelde tijd per vraag over de afnames.
+                         De linkeraanvinklijst kan worden gebruikt om vragen te selecteren voor de toets.
+                         De rechteraanvinklijst heeft vinkjes bij de vragen die voldoen aan de hieronder geselecteerde
+                         criteria.", 
                          br(),
-                         selectInput("vraagsortering", width=500, 
-                                     label = "Kies de sortering van de vragen in het topic",
-                                     choices = c("vraagcode","toets","p_schat","tijd_schat",
-                                                 "p","rir","tijd"),
-                                     selected = "vraagcode"),
+                         "Let op: wanneer het scherm onvoldoende breed is en vraagcodes of statistieken 
+                         van de regel afvallen, kan het zijn  dat de linker- en rechterlijst ten opzichte van elkaar
+                         verschoven worden weergeven.",
+                         checkboxInput("weergave_welafgenomen", width=600,
+                                       label = "vragen met afnamegegevens", 
+                                       value = TRUE),
+                         checkboxInput("weergave_nietafgenomen", width=600,
+                                       label = "vragen zonder afnamegegevens", 
+                                       value = TRUE),
                          checkboxInput("weergave_p", width=600,
                                        label = "geen vragen met p-waarde van minder dan .40 of meer dan .90", 
                                        value = TRUE),
@@ -77,9 +94,25 @@ fluidPage(
                          checkboxInput("weergave_tijd", width=600, 
                                        label = "geen vragen met gemiddelde tijd van meer dan 3 minuten", 
                                        value = TRUE),
-                         tableOutput("tab_vragenintopic"),
+                         column(6,
+                                uiOutput("vraagselectie")),
+                         column(6,
+                                uiOutput("vraagselectie_stats")),
                          br(),
-                         uiOutput("vraagselectie")
+                         column(12, 
+                                h5(strong("Gegevens per vraag in (sub)topic per afname")),
+                          "In de onderstaande tabel worden de vragen in het (sub)topic 
+                          die meerdere keren zijn afgenomen op meerdere regels 
+                         weergegeven, zodat de statistieken per afname zichtbaar zijn.
+                          Alleen vragen die voldoen aan de aangevinkte criteria worden weergegeven.",
+                          br(),
+                          br(),
+                         selectInput("vraagsortering", width=500, 
+                                     label = "Kies de sortering van de beschikbare vragen in acceptatie in het (sub)topic",
+                                     choices = c("vraagcode","toets","p_schat","tijd_schat",
+                                                 "p","rir","tijd"),
+                                     selected = "vraagcode"),
+                         tableOutput("tab_vragenintopic"))
                          ),
                 tabPanel("Alle tot nu toe geselecteerde vragen",
                          br(),
@@ -93,7 +126,7 @@ fluidPage(
                          tableOutput("tab_toetssel_gem"),
                          br(),
                          h5(strong("Gegevens per vraag per afname")),
-                         "In de onderstaande tabel worden voor de toets geselecteerd vragen 
+                         "In de onderstaande tabel worden voor de toets geselecteerde vragen 
                           die meerdere keren zijn afgenomen op meerdere regels 
                          weergegeven, zodat de statistieken per afname zichtbaar zijn.",
                          br(),
