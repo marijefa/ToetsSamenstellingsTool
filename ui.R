@@ -18,20 +18,23 @@ fluidPage(
     eerder zijn afgenomen.",
     br(),
     br(),
-    selectInput("vakkeuze", 
-                label = "Kies het vak voor toetssamenstelling",
-                choices = c("NT", "RW", "AK", "BI","DU","EC","EN","FR","GS","GW",
-                            "MA","NA","NE","OK","SK","WK"),
-                selected = "RW"),
+    "Upload eerst de door",em("10voordeleraar"),"verstrekte bestanden:",
+    br(),
+    br(),
+    fileInput('itemoverzicht','itemoverzicht.csv',accept = c(".csv")),
+    fileInput('inacceptatie','inacceptatie.csv',accept = c(".csv")),
+    uiOutput("vakkeuze"),
+    conditionalPanel(
+      condition = "output.fileUploaded",
     h5(strong("Alle toetsen tot nu toe")),
     textOutput("tekst_alle_ntoetsen"),
     textOutput("tekst_alle_ndg"),
     textOutput("tekst_alle_alfa"),
-    textOutput("tekst_alle_nvragenacc"),
-    textOutput("tekst_alle_nvragenaccafgenomen"),
     textOutput("tekst_alle_p"),
     textOutput("tekst_alle_rir"),
     textOutput("tekst_alle_tijd"),
+    textOutput("tekst_alle_nvragenacc"),
+    textOutput("tekst_alle_nvragenaccafgenomen"),
     br(),
     h5(strong("Laatst afgenomen toets")),
     textOutput("tekst_laatste_volgnr"),
@@ -56,13 +59,20 @@ fluidPage(
     conditionalPanel(
       condition = "output.fileDownloadklaar",
     downloadButton('download_xslx', 'Gegevens samengestelde toets in Excel'))
-    ),
+    )),
   
   ####main panel####
   
   mainPanel(
     tabsetPanel(type = "tabs",
                 tabPanel("Vraagselectie per (sub)topic",
+                         conditionalPanel(
+                           condition = "!output.fileUploaded",
+                           br(),
+                           "Upload eerst de door",em("10voordeleraar"),"verstrekte bestanden (itemoverzicht.csv en 
+                           inacceptatie.csv) om te beginnen met de toetssamenstelling."),
+                         conditionalPanel(
+                           condition = "output.fileUploaded",
                          br(),
                          uiOutput("topiclijst"),
                          h5(strong("Aantal vragen in dit (sub)topic per toets")),
@@ -113,8 +123,15 @@ fluidPage(
                                                  "p","rir","tijd"),
                                      selected = "vraagcode"),
                          tableOutput("tab_vragenintopic"))
-                         ),
+                         )),
                 tabPanel("Alle tot nu toe geselecteerde vragen",
+                         conditionalPanel(
+                           condition = "!output.fileUploaded",
+                           br(),
+                           "Upload eerst de door",em("10voordeleraar"),"verstrekte bestanden (itemoverzicht.csv en 
+                           inacceptatie.csv) om te beginnen met de toetssamenstelling."),
+                         conditionalPanel(
+                           condition = "output.fileUploaded",
                          br(),
                          h5(strong("Gecombineerde gegevens per vraag")),
                          "In de onderstaande tabel worden statistieken van de voor de toets geselecteerde vragen 
@@ -132,7 +149,7 @@ fluidPage(
                          br(),
                          br(),
                          tableOutput("tab_toetssel")
-                         )
+                         ))
                 )
     )
 )
